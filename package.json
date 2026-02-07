@@ -2,7 +2,7 @@
   "name": "ics-photobooth",
   "version": "1.0.0",
   "description": "ICS PHOTOBOOTH - Retro Pixelated Photo Experience",
-  "main": "main.js",
+  "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
