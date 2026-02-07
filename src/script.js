@@ -175,14 +175,15 @@ async function scanForTemplates() {
     DOM.templateSelector.innerHTML = '<div class="template-loading">Loading templates...</div>';
     
     // List of possible template locations and names
+    // Templates are now in root for Vercel compatibility
     const templatePaths = [
+        'template.png', 'template.jpg', 'template.jpeg',
+        'template1.png', 'template2.png', 'template3.png',
+        'template1.jpg', 'template2.jpg', 'template3.jpg',
         'public/template.png', 'public/template.jpg', 'public/template.jpeg',
         'public/template1.png', 'public/template2.png', 'public/template3.png',
-        'public/template1.jpg', 'public/template2.jpg', 'public/template3.jpg',
         'public/templates/template.png', 'public/templates/template.jpg',
-        'public/images/template.png', 'public/images/template.jpg',
-        'public/templates/1.png', 'public/templates/2.png', 'public/templates/3.png',
-        'public/templates/1.jpg', 'public/templates/2.jpg', 'public/templates/3.jpg'
+        'public/images/template.png', 'public/images/template.jpg'
     ];
     
     const foundTemplates = [];
@@ -192,20 +193,22 @@ async function scanForTemplates() {
         try {
             const exists = await checkImageExists(path);
             if (exists) {
+                const name = path.split('/').pop().replace(/\.(png|jpg|jpeg)$/i, '');
                 foundTemplates.push({
                     path: path,
-                    name: path.split('/').pop().replace(/\.(png|jpg|jpeg)$/i, '')
+                    name: name || 'Template'
                 });
             }
         } catch (e) {
             // Continue checking other paths
+            console.log(`Template check failed for ${path}:`, e.message);
         }
     }
     
     // If no templates found, add default template.png as fallback
     if (foundTemplates.length === 0) {
         foundTemplates.push({
-            path: 'public/template.png',
+            path: 'template.png',
             name: 'Default Template'
         });
     }
@@ -237,7 +240,7 @@ function buildTemplateSelector(templates) {
     if (!DOM.templateSelector) return;
     
     if (templates.length === 0) {
-        DOM.templateSelector.innerHTML = '<div class="template-empty">No templates found. Place template images in the public/ folder.</div>';
+        DOM.templateSelector.innerHTML = '<div class="template-empty">No templates found. Place template images in the public/ folder (served from root on Vercel).</div>';
         return;
     }
     
@@ -285,7 +288,7 @@ function loadTemplateImage(templatePath = null) {
     const templateImage = DOM.templateImage;
     if (!templateImage) return;
 
-    const pathToLoad = templatePath || state.selectedTemplate || 'public/template.png';
+    const pathToLoad = templatePath || state.selectedTemplate || 'template.png';
     
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -2837,7 +2840,7 @@ async function uploadToSupabaseCloud(videoBlob, fileName) {
         await saveSessionMetadata({
             videoUrl: cloudURL,
             fileName: fileName,
-            templateStyle: state.selectedTemplate || 'public/template.png',
+            templateStyle: state.selectedTemplate || 'template.png',
             photoCount: state.totalShots,
             fileSize: videoBlob.size,
             deviceInfo: navigator.userAgent
