@@ -1,0 +1,45 @@
+{
+  "name": "ics-photobooth",
+  "version": "1.0.0",
+  "description": "ICS PHOTOBOOTH - Retro Pixelated Photo Experience",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": ["photobooth", "electron", "camera", "photos", "retro", "pixel"],
+  "author": "ICS PHOTOBOOTH",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "build": {
+    "appId": "com.ics.photobooth",
+    "productName": "ICS PHOTOBOOTH",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules",
+      "!dist"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}
