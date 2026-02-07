@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Photobooth</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,6 +13,9 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1635988162/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="src/supabase-config.js"></script>
 </head>
 <body>
@@ -24,6 +30,10 @@
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusText">Initializing Camera...</span>
             </div>
+            <div id="smileDetectionStatus" class="smile-status" style="display: none;">
+                <span class="smile-status-icon"></span>
+                <span id="smileStatusText">Smile at the camera...</span>
+            </div>
         </div>
 
         <div class="settings-group">
@@ -31,6 +41,14 @@
             <div id="templateSelector" class="template-selector">
                 <div class="template-loading">Loading templates...</div>
             </div>
+        </div>
+
+        <div class="settings-group">
+            <label>
+                <input type="checkbox" id="smileDetectionToggle" checked>
+                <span>Enable Smile Detection (Auto-start)</span>
+            </label>
+            <small class="setting-hint">Smile at the camera to automatically start the session</small>
         </div>
 
         <!-- Fixed to 3 photos - selector hidden -->
@@ -68,15 +86,25 @@
             <span class="btn-icon"></span>
             START PHOTO SESSION
         </button>
+
+        <button id="helpBtn" class="btn-secondary" onclick="showTutorial()" style="margin-top: 10px;">
+            <span class="btn-icon"></span>
+            How to Use
+        </button>
     </div>
 
     <div class="main-area">
-        <video id="raw-feed" autoplay playsinline muted></video>
+        <video id="raw-feed" autoplay playsinline muted webkit-playsinline></video>
         <canvas id="live-canvas"></canvas>
+        <canvas id="smile-detection-canvas" style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 5; width: 100%; height: 100%; object-fit: contain;"></canvas>
         <!-- Template image - hidden, used for strip only -->
         <img id="template-image" src="" alt="" style="display: none;">
         <div id="countdown" class="countdown">3</div>
         <div id="flashEffect" class="flash-effect"></div>
+        <div id="smileDetectionIndicator" class="smile-detection-indicator" style="display: none;">
+            <div class="smile-icon"></div>
+            <div class="smile-text">Smile Detected! Starting session...</div>
+        </div>
     </div>
 
     <div class="preview-strip-container">
@@ -101,6 +129,58 @@
 
     <div id="print-image-container">
         <img id="print-target" src="" alt="Print Strip">
+    </div>
+
+    <!-- Tutorial/Help Modal -->
+    <div id="tutorialModal" class="modal">
+        <div class="modal-box tutorial-box">
+            <div class="modal-header">
+                <h2>📸 How to Use the Photobooth</h2>
+                <button class="modal-close" onclick="closeTutorial()">&times;</button>
+            </div>
+            <div class="modal-content tutorial-content">
+                <div class="tutorial-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Start the Session</h3>
+                        <p><strong>Option A:</strong> Smile at the camera (if smile detection is enabled)</p>
+                        <p><strong>Option B:</strong> Click the "START PHOTO SESSION" button</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Get Ready</h3>
+                        <p>Position yourself in front of the camera. You'll see a countdown (3, 2, 1) before each photo.</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Take 3 Photos</h3>
+                        <p>The photobooth will automatically capture 3 photos. Watch the countdown and smile!</p>
+                    </div>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Get Your Photos</h3>
+                        <p>After all photos are taken, you'll see:</p>
+                        <ul>
+                            <li> QR code to download your video</li>
+                            <li> Print button to print your photo strip</li>
+                            <li>⬇ Direct download link for your video</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="tutorial-tip">
+                    <strong> Tip:</strong> Make sure you're well-lit and centered in the camera frame for the best results!
+                </div>
+                <button class="btn-primary" onclick="closeTutorial()" style="margin-top: 20px; width: 100%;">
+                    Got it! Let's Start
+                </button>
+            </div>
+        </div>
     </div>
 
     <div id="resultsModal" class="modal">
@@ -143,9 +223,16 @@
                         </button>
                     </div>
                     
-                    <a id="downloadVidLink" class="download-link" download="photobooth-video.mp4">
+                    <a id="downloadVidLink" class="download-link" download="photobooth-video.mp4" onclick="handleVideoDownload(event)">
                         ⬇ Download Video
                     </a>
+                    <div id="iosDownloadHelp" class="ios-download-help" style="display: none;">
+                        <p class="ios-help-text"> <strong>iPhone/iPad Users:</strong></p>
+                        <p class="ios-help-text">Tap the video above, then use the share button to save to your device.</p>
+                        <button onclick="openVideoInNewTab()" class="btn-secondary" style="margin-top: 10px; width: 100%;">
+                             Open Video in New Tab
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

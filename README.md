@@ -1,20 +1,23 @@
-# ICS PHOTOBOOTH
-## Retro Pixelated Photo Experience
+# ICS PHOTOBOOTH v3.0
+## Modern Web-Based Photobooth Experience
 
-A desktop photobooth application with a retro pixelated design, featuring professional photo strips, HD video recording, and multiple retro templates.
+A professional photobooth application featuring hand gesture detection, custom template support, continuous video recording, and cloud storage integration. Perfect for events, parties, and commercial use.
 
-![ICS PHOTOBOOTH](https://via.placeholder.com/800x400/0a0a0a/00ff41?text=ICS+PHOTOBOOTH)
+![ICS PHOTOBOOTH](https://via.placeholder.com/800x400/0a0a0a/00ff41?text=ICS+PHOTOBOOTH+v3.0)
 
-## 🎮 Features
+## 🎮 Latest Features (v3.0)
 
-- **Retro Pixelated UI** - Classic 80s/90s computer aesthetic
-- **4 Pixel Templates** - Retro Classic, Neon Grid, Arcade Style, Cyber Punk
-- **Professional Photo Strips** - Print-ready 2.5" × 7" format at 300 DPI
-- **HD Video Recording** - 1080p video capture with QR code sharing
-- **Desktop App** - Runs as a native desktop application
-- **Camera Selection** - Choose from multiple camera devices
-- **Print Support** - Direct printing with proper formatting
-- **Session Reset** - Complete reset functionality for new sessions
+- **✋ Hand Detection** - Automatically start sessions by placing your hand in front of the camera
+- **🎨 Custom Template Selection** - Visual template selector with thumbnail previews
+- **📹 Continuous Video Recording** - Records entire session from start to finish
+- **☁️ Cloud Storage Integration** - Automatic upload to Supabase with QR code sharing
+- **📱 QR Code Downloads** - Easy video sharing via QR code scanning
+- **❓ Interactive Tutorial** - Built-in customer guide for easy operation
+- **🔄 Manual & Auto Start** - Choose between hand detection or button click
+- **📸 3-Photo Sessions** - Professional photo strip format (2.5" × 7")
+- **🖨️ Print Support** - Direct printing with copy selection (1-5 copies)
+- **🌐 Web & Desktop** - Works in browsers and as Electron desktop app
+- **📦 Vercel Ready** - Optimized for cloud deployment
 
 ## 🚀 Quick Start
 
@@ -28,31 +31,23 @@ A desktop photobooth application with a retro pixelated design, featuring profes
 3. Run: `npm install`
 4. Run: `npm start`
 
-## 🎨 Retro Templates
+## 🎨 Template System
 
-### 1. Retro Classic
-- Classic green terminal styling
-- Yellow accent colors
-- Pixel corner decorations
-- "REC" indicator
+### Custom Image Templates
+- **Visual Template Selector** - Browse and select from available templates
+- **Thumbnail Preview** - See templates before selecting
+- **Multiple Formats** - Supports PNG, JPG, JPEG
+- **Auto-Detection** - Automatically scans for templates in:
+  - Root folder: `template.png`, `template1.png`, etc.
+  - `public/templates/` folder
+  - `public/images/` folder
+- **Recommended Size** - 707 × 2000 px (vertical strip format)
 
-### 2. Neon Grid
-- Hot pink neon borders
-- Cyan grid overlay
-- Glowing corner elements
-- Cyberpunk aesthetic
-
-### 3. Arcade Style
-- Bright yellow borders
-- Orange accent elements
-- Pixel strip decorations
-- Score display styling
-
-### 4. Cyber Punk
-- Cyan and magenta colors
-- Circuit line patterns
-- Cyber nodes
-- Futuristic styling
+### Built-in Code Templates (Legacy)
+- **Retro Classic** - Green terminal styling
+- **Neon Grid** - Hot pink neon borders
+- **Arcade Style** - Bright yellow borders
+- **Cyber Punk** - Cyan and magenta colors
 
 ## 🖨️ Print Specifications
 
@@ -81,15 +76,25 @@ A desktop photobooth application with a retro pixelated design, featuring profes
 ## 📁 Project Structure
 
 ```
-ics-photobooth/
-├── main.js              # Electron main process
-├── index.html           # Main application UI
-├── styles.css           # Retro pixelated styling
-├── script.js            # Application logic
-├── package.json         # Dependencies and scripts
-├── install.bat          # Windows installer
-├── run.bat             # Windows launcher
-└── README.md           # This file
+photoboothv3/
+├── index.html              # Main application UI
+├── styles.css              # Application styling
+├── template.png            # Custom template images (root)
+├── template1.png           # Additional templates
+├── src/                    # JavaScript source files
+│   ├── main.js             # Electron main process
+│   ├── script.js           # Application logic
+│   ├── supabase-config.js  # Cloud storage configuration
+│   └── recording-system.js # Video recording system
+├── public/                 # Static assets (for Vercel)
+│   └── templates/          # Template images folder
+├── scripts/                # Setup scripts
+│   ├── install.bat         # Windows installer
+│   ├── run.bat             # Windows launcher
+│   └── setup-supabase.bat # Supabase setup
+├── package.json            # Dependencies and scripts
+├── vercel.json             # Vercel deployment config
+└── README.md               # This file
 ```
 
 ## 🛠️ Development
@@ -107,25 +112,94 @@ npm start
 ### Debugging
 Press `Ctrl+Shift+I` to open Developer Tools
 
-## 🎯 Usage Instructions
+## 🎯 Customer Tutorial - How to Use
 
-1. **Start Application** - Launch using `run.bat` or `npm start`
-2. **Select Camera** - Choose your camera device from dropdown
-3. **Pick Template** - Select your preferred retro style
-4. **Set Photo Count** - Choose 2, 3, or 4 photos
-5. **Start Session** - Click "START SESSION" button
-6. **Take Photos** - Follow the countdown for each shot
-7. **Print & Share** - Print your strip and scan QR for video
+### Quick Start Guide
+
+1. **Position Yourself** - Stand in front of the camera and make sure you're well-lit
+2. **Start the Session** - You have two options:
+   - **Option A (Auto)**: Place your hand in front of the camera (if hand detection is enabled)
+   - **Option B (Manual)**: Click the "START PHOTO SESSION" button
+3. **Get Ready** - You'll see a countdown (3, 2, 1) before each photo
+4. **Take 3 Photos** - The photobooth automatically captures 3 photos
+5. **Get Your Photos** - After all photos are taken:
+   - 📱 **Scan the QR code** to download your video
+   - 🖨️ **Click Print** to print your photo strip (select 1-5 copies)
+   - ⬇️ **Click Download** for direct video download
+
+### 💡 Tips for Best Results
+
+- Make sure you're well-lit and centered in the camera frame
+- Wait for the countdown before moving
+- Smile and have fun! 😊
+- Keep your hand steady if using hand detection
+
+## 🛠️ Setup Instructions
+
+### For Administrators
+
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Configure Supabase** (Optional - for cloud storage)
+   - Create a Supabase project
+   - Set up storage bucket named `photobooth-videos`
+   - Update `src/supabase-config.js` with your credentials
+   - See `SUPABASE_QUICK_SETUP.md` for detailed instructions
+
+3. **Add Custom Templates**
+   - Place template images in the root folder: `template.png`, `template1.png`, etc.
+   - Or create a `public/templates/` folder
+   - Supported formats: `.png`, `.jpg`, `.jpeg`
+   - Recommended size: 707 × 2000 px (vertical strip format)
+
+4. **Run the Application**
+   ```bash
+   npm start
+   ```
+   Or use the batch script:
+   ```bash
+   scripts/run.bat
+   ```
+
+5. **Deploy to Vercel** (Optional)
+   - Push to GitHub
+   - Connect to Vercel
+   - Deploy automatically
+   - See `vercel.json` for configuration
+
+## ⚙️ Configuration Options
+
+### Hand Detection
+- **Enable/Disable** - Toggle hand detection in settings
+- **Auto-Start** - Automatically starts session when hand is detected
+- **Manual Override** - Button click always works regardless of setting
+- **Visual Feedback** - Shows indicator when hand is detected
+
+### Template Selection
+- **Visual Selector** - Click thumbnails to choose template
+- **Auto-Load** - First available template loads automatically
+- **Live Preview** - See template on preview strip
+- **Custom Images** - Add your own template images
+
+### Video Recording
+- **Continuous Recording** - Records entire session from start to finish
+- **Format Support** - MP4 (preferred) or WebM (fallback)
+- **Cloud Upload** - Automatic upload to Supabase (if configured)
+- **Local Download** - Direct download option available
 
 ## 🔄 Session Reset
 
-The "NEW SESSION" button completely resets:
+The "Take More Photos" button completely resets:
 - Photo counter
 - Strip canvas
 - Video recording
 - QR code
 - Download links
 - All session data
+- Hand detection (restarts if enabled)
 
 ## 🎨 Customization
 
@@ -145,14 +219,34 @@ The "NEW SESSION" button completely resets:
 - **Black Screen**: Try different camera in dropdown
 - **Access Denied**: Allow camera permissions in browser
 - **Not Found**: Check camera connections and drivers
+- **Green Tint**: Fixed in v3.0 - clear camera feed
+
+### Hand Detection Issues
+- **Not Working**: Make sure hand detection toggle is enabled
+- **Too Sensitive**: Hand must be held steady for 1 second
+- **Not Detecting**: Ensure good lighting and clear view of hand
+- **Library Not Loading**: Check internet connection (MediaPipe loads from CDN)
+
+### Template Issues
+- **Not Showing**: Check file paths and formats (PNG/JPG)
+- **Wrong Size**: Recommended 707 × 2000 px for vertical strips
+- **Not Loading**: Check browser console for errors
+- **Selector Empty**: Add templates to root or `public/templates/` folder
+
+### Video Recording Issues
+- **0 Seconds**: Fixed in v3.0 - continuous recording works properly
+- **Not Downloading**: Check browser download permissions
+- **Wrong Format**: MP4 preferred, WebM fallback
+- **Cloud Upload Fails**: Verify Supabase configuration
 
 ### Installation Issues
 - **Node.js Missing**: Install from [nodejs.org](https://nodejs.org/)
 - **Permission Errors**: Run as administrator on Windows
 - **Port Conflicts**: Close other applications using camera
+- **Vercel Deployment**: Check `vercel.json` configuration
 
 ### Print Issues
-- **Wrong Size**: Check printer settings for actual size
+- **Wrong Size**: Check printer settings for actual size (2.5" × 7")
 - **Poor Quality**: Ensure 300 DPI setting in printer preferences
 - **Colors Off**: Calibrate monitor and printer color profiles
 

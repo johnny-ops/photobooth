@@ -18,6 +18,9 @@ const CONFIG = {
     RECORDING_DURATION: 5000, // Fixed 5 seconds per strip (strict, no early stop)
     PREVIEW_DURATION: 3000,  // 3 seconds preview after each strip
     ANIMATION_FPS: 30,       // Animation frame rate
+    // Mobile detection
+    IS_MOBILE: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+    IS_TOUCH: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
 };
 
 // ========================================
@@ -88,6 +91,12 @@ const DOM = {
     stripPreviewContainer: document.getElementById('stripPreviewContainer'),
     stripPreviewVideo: document.getElementById('stripPreviewVideo'),
     previewContinueBtn: document.getElementById('previewContinueBtn'),
+    smileDetectionToggle: document.getElementById('smileDetectionToggle'),
+    smileDetectionCanvas: document.getElementById('smile-detection-canvas'),
+    smileDetectionIndicator: document.getElementById('smileDetectionIndicator'),
+    smileDetectionStatus: document.getElementById('smileDetectionStatus'),
+    smileStatusText: document.getElementById('smileStatusText'),
+    tutorialModal: document.getElementById('tutorialModal'),
 };
 
 // ========================================
@@ -131,6 +140,22 @@ let state = {
     sessionVideo: null,      // Final video blob from session
     positionStreams: [],     // Store streams
     stripUpdateAnimationId: null, // Animation ID for updating strip canvas during recording
+    // Download state
+    downloadVideoBlob: null,
+    downloadVideoURL: null,
+    downloadFileName: null,
+    downloadFileExtension: null,
+    cloudVideoURL: null,
+    // Smile detection state
+    smileDetectionEnabled: true,
+    faceMesh: null,
+    camera: null,
+    smileDetectionActive: false,
+    smileDetectedCount: 0,
+    smileDetectionThreshold: 8, // Number of consecutive smile detections needed
+    smileDetectionTimeout: null,
+    lastSmileDetectionTime: 0,
+    lastMouthPosition: null,
 };
 
 // ========================================
@@ -138,6 +163,14 @@ let state = {
 // ========================================
 
 function init() {
+    // Detect mobile and adjust config
+    if (CONFIG.IS_MOBILE) {
+        // Use smaller dimensions for mobile to improve performance
+        CONFIG.VIDEO_W = Math.min(640, window.innerWidth);
+        CONFIG.VIDEO_H = Math.min(480, window.innerHeight * 0.6);
+        console.log('📱 Mobile device detected - using optimized settings');
+    }
+    
     // Set canvas dimensions
     DOM.liveCanvas.width = CONFIG.VIDEO_W;
     DOM.liveCanvas.height = CONFIG.VIDEO_H;
@@ -604,6 +637,11 @@ async function waitForVideoReady() {
                 DOM.statusDot.classList.add('active');
                 }
                 startRenderLoop();
+                
+                // Initialize smile detection if enabled
+                if (state.smileDetectionEnabled) {
+                    setTimeout(() => initSmileDetection(), 1000);
+                }
                 
                 resolve();
                 return true;
@@ -1604,6 +1642,9 @@ function startSession() {
         alert('Camera is not ready yet. Please wait...');
         return;
     }
+
+    // Stop smile detection when session starts
+    stopSmileDetection();
 
     DOM.startBtn.disabled = true;
     state.photoIndex = 0;
@@ -2784,14 +2825,51 @@ function processResultsWithVideo(finalVideoBlob, fileExtension = 'webm') {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
     const fileName = `photobooth-${timestamp}.${fileExtension}`;
 
-    // Update download link
+    // Store video blob for download
+    state.downloadVideoBlob = finalVideoBlob;
+    state.downloadFileName = fileName;
+    state.downloadFileExtension = fileExtension;
+
+    // Create local blob URL for immediate download
     const videoURL = URL.createObjectURL(finalVideoBlob);
-    DOM.downloadLink.href = videoURL;
-    DOM.downloadLink.download = fileName;
-    DOM.downloadLink.textContent = `⬇ Download Video (${fileExtension.toUpperCase()})`;
+    setupDownloadLink(videoURL, fileName, fileExtension, finalVideoBlob);
 
     // Upload to Supabase
     uploadToSupabaseCloud(finalVideoBlob, fileName);
+}
+
+// Setup download link with mobile/iOS support
+function setupDownloadLink(videoURL, fileName, fileExtension, videoBlob) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Store for later use
+    state.downloadVideoURL = videoURL;
+    state.downloadVideoBlob = videoBlob;
+    
+    if (isIOS) {
+        // iOS: Show help text and use different approach
+        DOM.downloadLink.href = videoURL;
+        DOM.downloadLink.download = fileName;
+        DOM.downloadLink.textContent = `📱 Download Video (${fileExtension.toUpperCase()})`;
+        DOM.downloadLink.target = '_blank'; // Open in new tab for iOS
+        
+        // Show iOS help
+        const iosHelp = document.getElementById('iosDownloadHelp');
+        if (iosHelp) {
+            iosHelp.style.display = 'block';
+        }
+    } else if (isMobile) {
+        // Android/Other mobile: Try download, fallback to open
+        DOM.downloadLink.href = videoURL;
+        DOM.downloadLink.download = fileName;
+        DOM.downloadLink.textContent = `⬇ Download Video (${fileExtension.toUpperCase()})`;
+    } else {
+        // Desktop: Standard download
+        DOM.downloadLink.href = videoURL;
+        DOM.downloadLink.download = fileName;
+        DOM.downloadLink.textContent = `⬇ Download Video (${fileExtension.toUpperCase()})`;
+    }
 }
 
 async function uploadToSupabaseCloud(videoBlob, fileName) {
@@ -2866,44 +2944,7 @@ async function uploadToSupabaseCloud(videoBlob, fileName) {
         }
 
         // Update download link to cloud URL with proper download handler
-        DOM.downloadLink.href = '#';
-        DOM.downloadLink.textContent = '⬇ Download Video';
-        DOM.downloadLink.style.color = '#00a8ff';
-        DOM.downloadLink.onclick = async (e) => {
-            e.preventDefault();
-            try {
-                // Fetch the video file
-                const response = await fetch(cloudURL);
-                if (!response.ok) throw new Error('Failed to fetch video');
-                
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                
-                // Determine file extension from content type or URL
-                let fileExt = 'mp4';
-                if (blob.type.includes('webm')) fileExt = 'webm';
-                else if (cloudURL.includes('.webm')) fileExt = 'webm';
-                else if (cloudURL.includes('.mp4')) fileExt = 'mp4';
-                
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-                const downloadFileName = `photobooth-${timestamp}.${fileExt}`;
-                
-                // Create temporary download link
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = downloadFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                // Clean up
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-            } catch (error) {
-                console.error('Download error:', error);
-                // Fallback: open in new tab
-                window.open(cloudURL, '_blank');
-            }
-        };
+        setupCloudDownloadLink(cloudURL, fileName, fileExtension);
 
         // Prepare print image with template included
         await preparePrintImage();
@@ -3154,7 +3195,22 @@ function resetBooth() {
     }
     
     // Reset download link
-    DOM.downloadLink.href = '';
+    DOM.downloadLink.href = '#';
+    DOM.downloadLink.download = '';
+    DOM.downloadLink.target = '';
+    DOM.downloadLink.style.color = '';
+    DOM.downloadLink.onclick = null;
+    state.downloadVideoBlob = null;
+    state.downloadVideoURL = null;
+    state.downloadFileName = null;
+    state.downloadFileExtension = null;
+    state.cloudVideoURL = null;
+    
+    // Hide iOS help
+    const iosHelp = document.getElementById('iosDownloadHelp');
+    if (iosHelp) {
+        iosHelp.style.display = 'none';
+    }
     DOM.downloadLink.textContent = '⬇ Download Video';
     
     // Clear print image
@@ -3166,7 +3222,481 @@ function resetBooth() {
         DOM.stripPreviewVideo.src = '';
     }
     
+    // Restart smile detection if enabled
+    if (state.smileDetectionEnabled && state.cameraReady) {
+        setTimeout(() => initSmileDetection(), 1000);
+    }
+    
     console.log('✅ Booth reset successfully - ready for new session');
+}
+
+// ========================================
+// SMILE DETECTION
+// ========================================
+
+function initSmileDetection() {
+    if (!state.smileDetectionEnabled || !state.cameraReady || state.smileDetectionActive) {
+        return;
+    }
+
+    // Wait a bit for video to be fully ready
+    setTimeout(() => {
+        if (typeof FaceMesh === 'undefined') {
+            console.warn('MediaPipe Face Mesh library not loaded - retrying...');
+            // Retry after a delay
+            setTimeout(initSmileDetection, 2000);
+            return;
+        }
+
+        try {
+            // Initialize MediaPipe Face Mesh for smile detection
+            state.faceMesh = new FaceMesh({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+                }
+            });
+
+            // Optimized settings for mobile
+            state.faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: false, // Faster processing
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            state.faceMesh.onResults(onSmileResults);
+
+            // Initialize camera for smile detection
+            if (DOM.rawVideo && DOM.smileDetectionCanvas) {
+                const videoWidth = DOM.rawVideo.videoWidth || CONFIG.VIDEO_W;
+                const videoHeight = DOM.rawVideo.videoHeight || CONFIG.VIDEO_H;
+                
+                DOM.smileDetectionCanvas.width = videoWidth;
+                DOM.smileDetectionCanvas.height = videoHeight;
+                
+                // Use requestAnimationFrame for better mobile performance
+                let lastFrameTime = 0;
+                const targetFPS = 15; // Lower FPS for mobile
+                const frameInterval = 1000 / targetFPS;
+                
+                const processFrame = async (currentTime) => {
+                    if (state.isRecording || !state.smileDetectionActive) {
+                        return;
+                    }
+                    
+                    if (currentTime - lastFrameTime >= frameInterval) {
+                        lastFrameTime = currentTime;
+                        
+                        if (state.faceMesh && DOM.rawVideo.readyState >= 2) {
+                            try {
+                                await state.faceMesh.send({ image: DOM.rawVideo });
+                            } catch (e) {
+                                console.warn('Smile detection frame error:', e);
+                            }
+                        }
+                    }
+                    
+                    if (state.smileDetectionActive && !state.isRecording) {
+                        requestAnimationFrame(processFrame);
+                    }
+                };
+                
+                // Start processing frames
+                requestAnimationFrame(processFrame);
+                
+                state.smileDetectionActive = true;
+                console.log('✅ Smile detection initialized (mobile optimized)');
+                
+                // Show smile detection status
+                if (DOM.smileDetectionStatus && DOM.smileStatusText) {
+                    DOM.smileDetectionStatus.style.display = 'flex';
+                    DOM.smileStatusText.textContent = 'Smile at the camera...';
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing smile detection:', error);
+            if (DOM.smileStatusText) {
+                DOM.smileStatusText.textContent = 'Smile detection unavailable';
+            }
+            // Retry after delay
+            setTimeout(() => {
+                if (state.smileDetectionEnabled && state.cameraReady) {
+                    initSmileDetection();
+                }
+            }, 3000);
+        }
+    }, 500);
+}
+
+function onSmileResults(results) {
+    if (!DOM.smileDetectionCanvas || state.isRecording || !state.smileDetectionActive) {
+        return;
+    }
+
+    const ctx = DOM.smileDetectionCanvas.getContext('2d');
+    ctx.clearRect(0, 0, DOM.smileDetectionCanvas.width, DOM.smileDetectionCanvas.height);
+
+    // Check if face is detected
+    if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        const face = results.multiFaceLandmarks[0];
+        
+        // Face Mesh landmarks for mouth
+        // Left corner of mouth: 61, Right corner: 291
+        // Top lip: 13, 14, 15, 16, 17
+        // Bottom lip: 18, 19, 20, 21, 22
+        const leftMouth = face[61];
+        const rightMouth = face[291];
+        const topLipCenter = face[13];
+        const bottomLipCenter = face[18];
+        
+        // Calculate mouth width and height
+        const mouthWidth = Math.abs(leftMouth.x - rightMouth.x) * DOM.smileDetectionCanvas.width;
+        const mouthHeight = Math.abs(topLipCenter.y - bottomLipCenter.y) * DOM.smileDetectionCanvas.height;
+        
+        // Calculate mouth opening (smile detection)
+        // When smiling, mouth width increases and height may increase slightly
+        const mouthAspectRatio = mouthWidth / (mouthHeight + 1); // +1 to avoid division by zero
+        
+        // Smile threshold: mouth should be wider than tall (typical smile ratio > 2.5)
+        const isSmiling = mouthAspectRatio > 2.5 && mouthWidth > 30; // Minimum width check
+        
+        // Check if face is in center area
+        const noseTip = face[4]; // Nose tip landmark
+        const centerX = DOM.smileDetectionCanvas.width / 2;
+        const centerY = DOM.smileDetectionCanvas.height / 2;
+        const distanceFromCenter = Math.sqrt(
+            Math.pow(noseTip.x * DOM.smileDetectionCanvas.width - centerX, 2) + 
+            Math.pow(noseTip.y * DOM.smileDetectionCanvas.height - centerY, 2)
+        );
+        
+        // Face should be in center 70% of screen
+        const maxDistance = Math.min(DOM.smileDetectionCanvas.width, DOM.smileDetectionCanvas.height) * 0.35;
+        const isCentered = distanceFromCenter < maxDistance;
+        
+        if (isSmiling && isCentered) {
+            // Smile detected in center - increment counter
+            state.smileDetectedCount++;
+            state.lastSmileDetectionTime = Date.now();
+            
+            // Show indicator immediately
+            if (state.smileDetectedCount >= 3 && !state.isRecording) {
+                if (DOM.smileDetectionIndicator) {
+                    DOM.smileDetectionIndicator.style.display = 'flex';
+                }
+                if (DOM.smileStatusText) {
+                    const progress = Math.min(100, (state.smileDetectedCount / state.smileDetectionThreshold) * 100);
+                    DOM.smileStatusText.textContent = `Smile detected! (${Math.round(progress)}%)`;
+                }
+            }
+
+            // Start session after threshold
+            if (state.smileDetectedCount >= state.smileDetectionThreshold && !state.isRecording && state.cameraReady) {
+                console.log('😊 Smile detected - starting session automatically');
+                if (DOM.smileDetectionIndicator) {
+                    DOM.smileDetectionIndicator.style.display = 'none';
+                }
+                stopSmileDetection();
+                // Small delay to ensure UI updates
+                setTimeout(() => {
+                    startSession();
+                }, 100);
+            }
+        } else {
+            // Not smiling or not centered - reset counter gradually
+            if (Date.now() - state.lastSmileDetectionTime > 400) {
+                state.smileDetectedCount = Math.max(0, state.smileDetectedCount - 1);
+                
+                if (state.smileDetectedCount === 0) {
+                    if (DOM.smileDetectionIndicator) {
+                        DOM.smileDetectionIndicator.style.display = 'none';
+                    }
+                    if (DOM.smileStatusText && isCentered) {
+                        DOM.smileStatusText.textContent = 'Smile bigger! 😊';
+                    } else if (DOM.smileStatusText) {
+                        DOM.smileStatusText.textContent = 'Move to center and smile';
+                    }
+                }
+            }
+        }
+    } else {
+        // No face detected - reset counter
+        if (Date.now() - state.lastSmileDetectionTime > 300) {
+            state.smileDetectedCount = Math.max(0, state.smileDetectedCount - 2);
+            
+            if (state.smileDetectedCount === 0) {
+                if (DOM.smileDetectionIndicator) {
+                    DOM.smileDetectionIndicator.style.display = 'none';
+                }
+                if (DOM.smileStatusText) {
+                    DOM.smileStatusText.textContent = 'Face the camera and smile';
+                }
+            }
+        }
+    }
+}
+
+function stopSmileDetection() {
+    state.smileDetectionActive = false;
+    state.smileDetectedCount = 0;
+    state.lastSmileDetectionTime = 0;
+    state.lastMouthPosition = null;
+    
+    if (state.camera) {
+        try {
+            state.camera.stop();
+        } catch (e) {
+            console.warn('Error stopping camera:', e);
+        }
+        state.camera = null;
+    }
+    
+    if (state.smileDetectionTimeout) {
+        clearTimeout(state.smileDetectionTimeout);
+        state.smileDetectionTimeout = null;
+    }
+    
+    if (DOM.smileDetectionIndicator) {
+        DOM.smileDetectionIndicator.style.display = 'none';
+    }
+    
+    if (DOM.smileDetectionStatus) {
+        DOM.smileDetectionStatus.style.display = 'none';
+    }
+    
+    if (DOM.smileDetectionCanvas) {
+        const ctx = DOM.smileDetectionCanvas.getContext('2d');
+        ctx.clearRect(0, 0, DOM.smileDetectionCanvas.width, DOM.smileDetectionCanvas.height);
+    }
+}
+
+// ========================================
+// VIDEO DOWNLOAD (MOBILE/iOS COMPATIBLE)
+// ========================================
+
+// Setup cloud download link
+function setupCloudDownloadLink(cloudURL, fileName, fileExtension) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    state.cloudVideoURL = cloudURL;
+    
+    if (isIOS) {
+        // iOS: Open in new tab, user can use share button
+        DOM.downloadLink.href = cloudURL;
+        DOM.downloadLink.target = '_blank';
+        DOM.downloadLink.download = ''; // Remove download attribute for iOS
+        DOM.downloadLink.textContent = '📱 Open Video (Tap to Download)';
+        DOM.downloadLink.style.color = '#00a8ff';
+        DOM.downloadLink.onclick = (e) => {
+            e.preventDefault();
+            window.open(cloudURL, '_blank');
+            return false;
+        };
+        
+        // Show iOS help
+        const iosHelp = document.getElementById('iosDownloadHelp');
+        if (iosHelp) {
+            iosHelp.style.display = 'block';
+        }
+    } else if (isMobile) {
+        // Android/Other mobile: Try to download, fallback to open
+        DOM.downloadLink.href = cloudURL;
+        DOM.downloadLink.download = fileName;
+        DOM.downloadLink.target = '_blank';
+        DOM.downloadLink.textContent = '⬇ Download Video';
+        DOM.downloadLink.style.color = '#00a8ff';
+        DOM.downloadLink.onclick = (e) => handleVideoDownload(e);
+    } else {
+        // Desktop: Direct download via fetch
+        DOM.downloadLink.href = '#';
+        DOM.downloadLink.textContent = '⬇ Download Video';
+        DOM.downloadLink.style.color = '#00a8ff';
+        DOM.downloadLink.onclick = async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch(cloudURL);
+                if (!response.ok) throw new Error('Failed to fetch video');
+                
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                
+                let fileExt = 'mp4';
+                if (blob.type.includes('webm')) fileExt = 'webm';
+                else if (cloudURL.includes('.webm')) fileExt = 'webm';
+                else if (cloudURL.includes('.mp4')) fileExt = 'mp4';
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const downloadFileName = `photobooth-${timestamp}.${fileExt}`;
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = downloadFileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+            } catch (error) {
+                console.error('Download error:', error);
+                window.open(cloudURL, '_blank');
+            }
+        };
+    }
+}
+
+// Handle video download with mobile/iOS support
+function handleVideoDownload(event) {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    // If we have a cloud URL, use it
+    if (state.cloudVideoURL) {
+        if (isIOS) {
+            event.preventDefault();
+            window.open(state.cloudVideoURL, '_blank');
+            return false;
+        }
+        return true;
+    }
+    
+    // If we have a local blob, handle it
+    if (state.downloadVideoBlob) {
+        if (isIOS) {
+            event.preventDefault();
+            downloadVideoForIOS(state.downloadVideoBlob, state.downloadFileName);
+            return false;
+        } else {
+            event.preventDefault();
+            downloadVideoForMobile(state.downloadVideoBlob, state.downloadFileName);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// Download video for iOS devices
+function downloadVideoForIOS(videoBlob, fileName) {
+    const videoURL = state.downloadVideoURL || URL.createObjectURL(videoBlob);
+    
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+        newWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${fileName}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 20px;
+                        background: #000;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        color: white;
+                    }
+                    video {
+                        max-width: 100%;
+                        max-height: 80vh;
+                        border-radius: 8px;
+                    }
+                    .instructions {
+                        margin-top: 20px;
+                        text-align: center;
+                        padding: 15px;
+                        background: rgba(255,255,255,0.1);
+                        border-radius: 8px;
+                    }
+                    .instructions h3 {
+                        margin: 0 0 10px 0;
+                    }
+                    .instructions p {
+                        margin: 5px 0;
+                        font-size: 14px;
+                    }
+                </style>
+            </head>
+            <body>
+                <video controls autoplay>
+                    <source src="${videoURL}" type="video/${state.downloadFileExtension === 'mp4' ? 'mp4' : 'webm'}">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="instructions">
+                    <h3>📱 How to Save Video</h3>
+                    <p>1. Tap the video</p>
+                    <p>2. Tap the share button (📤)</p>
+                    <p>3. Select "Save to Photos" or "Save to Files"</p>
+                </div>
+            </body>
+            </html>
+        `);
+        newWindow.document.close();
+    } else {
+        window.open(videoURL, '_blank');
+    }
+}
+
+// Download video for Android/other mobile devices
+function downloadVideoForMobile(videoBlob, fileName) {
+    try {
+        const url = state.downloadVideoURL || URL.createObjectURL(videoBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+            if (url.startsWith('blob:')) {
+                URL.revokeObjectURL(url);
+            }
+        }, 100);
+    } catch (error) {
+        console.warn('Mobile download failed, opening in new tab:', error);
+        const url = state.downloadVideoURL || URL.createObjectURL(videoBlob);
+        window.open(url, '_blank');
+    }
+}
+
+// Open video in new tab (for iOS users)
+function openVideoInNewTab() {
+    const videoURL = state.cloudVideoURL || state.downloadVideoURL;
+    if (videoURL) {
+        window.open(videoURL, '_blank');
+    } else if (state.downloadVideoBlob) {
+        const url = URL.createObjectURL(state.downloadVideoBlob);
+        window.open(url, '_blank');
+    }
+}
+
+// ========================================
+// TUTORIAL
+// ========================================
+
+function showTutorial() {
+    if (DOM.tutorialModal) {
+        DOM.tutorialModal.style.display = 'flex';
+    }
+}
+
+function closeTutorial() {
+    if (DOM.tutorialModal) {
+        DOM.tutorialModal.style.display = 'none';
+    }
+}
+
+// Close tutorial when clicking outside
+if (DOM.tutorialModal) {
+    DOM.tutorialModal.addEventListener('click', (e) => {
+        if (e.target === DOM.tutorialModal) {
+            closeTutorial();
+        }
+    });
 }
 
 // ========================================
