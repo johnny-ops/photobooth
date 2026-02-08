@@ -26,41 +26,46 @@ function createWindow() {
             experimentalFeatures: true,
             permissions: ['camera', 'microphone']
         },
-        icon: path.join(__dirname, 'assets', 'icon.png'),
+        icon: path.join(__dirname, '..', 'public', 'assets', 'icon.png'),
         title: 'ICS PHOTOBOOTH - Kiosk Mode',
         show: false,
         backgroundColor: '#0a0a0a',
-        alwaysOnTop: true, // Keep on top for kiosk mode
-        skipTaskbar: true, // Hide from taskbar
-        resizable: false,
-        movable: false,
-        minimizable: false,
-        maximizable: false,
-        closable: false // Prevent accidental closing
+        alwaysOnTop: false, // Allow alt-tab and window switching
+        skipTaskbar: false, // Show in taskbar
+        resizable: true, // Allow resizing
+        movable: true, // Allow moving
+        minimizable: true, // Allow minimizing
+        maximizable: true, // Allow maximizing
+        closable: true // Allow closing
     });
 
-    // Load the app
-    mainWindow.loadFile('index.html');
+    // Load the app (index.html is in root, main.js is in src/)
+    mainWindow.loadFile(path.join(__dirname, '..', 'index.html'));
 
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
-        mainWindow.setFullScreen(true);
+        // Don't force fullscreen - let user control it
+        // mainWindow.setFullScreen(true);
         
         // Focus the window
         if (process.platform === 'darwin') {
-            app.dock.hide(); // Hide dock on macOS
+            // Don't hide dock - allow normal macOS behavior
+            // app.dock.hide();
         }
         mainWindow.focus();
         
-        // Disable right-click context menu
-        mainWindow.webContents.on('context-menu', (e) => {
-            e.preventDefault();
-        });
+        // Allow right-click context menu (for debugging)
+        // mainWindow.webContents.on('context-menu', (e) => {
+        //     e.preventDefault();
+        // });
         
-        // Prevent navigation
-        mainWindow.webContents.on('will-navigate', (e) => {
-            e.preventDefault();
+        // Prevent navigation to external URLs
+        mainWindow.webContents.on('will-navigate', (e, navigationUrl) => {
+            const parsedUrl = new URL(navigationUrl);
+            if (parsedUrl.origin !== `file://${path.join(__dirname, '..')}`) {
+                e.preventDefault();
+            }
         });
     });
 
@@ -185,12 +190,12 @@ app.on('web-contents-created', (event, contents) => {
     });
 });
 
-// Prevent app from being hidden
-app.on('browser-window-blur', () => {
-    if (mainWindow) {
-        mainWindow.focus();
-    }
-});
+// Allow app to be hidden (for alt-tab functionality)
+// app.on('browser-window-blur', () => {
+//     if (mainWindow) {
+//         mainWindow.focus();
+//     }
+// });
 
 // Handle system sleep/wake
 const powerMonitor = require('electron').powerMonitor;

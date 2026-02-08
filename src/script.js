@@ -787,6 +787,7 @@ function startRenderLoop() {
                 if (DOM.rawVideo.paused) {
                     DOM.rawVideo.play().catch(e => console.warn('Play error:', e));
                 }
+                // Draw video frame (not mirrored - normal camera view)
                 CTX.live.drawImage(DOM.rawVideo, 0, 0, CONFIG.VIDEO_W, CONFIG.VIDEO_H);
             } catch (e) {
                 console.warn('Error drawing video frame:', e);
