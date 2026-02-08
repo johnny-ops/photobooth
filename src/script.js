@@ -2850,8 +2850,8 @@ function setupDownloadLink(videoURL, fileName, fileExtension, videoBlob) {
     
     if (isIOS) {
         // iOS: Show help text and use different approach
-        DOM.downloadLink.href = videoURL;
-        DOM.downloadLink.download = fileName;
+    DOM.downloadLink.href = videoURL;
+    DOM.downloadLink.download = fileName;
         DOM.downloadLink.textContent = `📱 Download Video (${fileExtension.toUpperCase()})`;
         DOM.downloadLink.target = '_blank'; // Open in new tab for iOS
         
@@ -2945,14 +2945,14 @@ async function uploadToSupabaseCloud(videoBlob, fileName, fileExtension = null) 
         if (qrContainer) {
             qrContainer.innerHTML = '';
             try {
-                new QRCode(qrContainer, {
-                    text: cloudURL,
-                    width: 200,
-                    height: 200,
-                    colorDark: '#000000',
-                    colorLight: '#ffffff',
-                    correctLevel: QRCode.CorrectLevel.H,
-                });
+            new QRCode(qrContainer, {
+            text: cloudURL,
+                width: 200,
+                height: 200,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H,
+        });
                 console.log('✅ QR code generated with cloud URL:', cloudURL);
             } catch (qrError) {
                 console.error('QR code generation error:', qrError);
@@ -3021,10 +3021,10 @@ async function uploadToSupabaseCloud(videoBlob, fileName, fileExtension = null) 
                     return false;
                 };
             } else {
-                DOM.downloadLink.href = localURL;
-                DOM.downloadLink.download = downloadFileName;
-                DOM.downloadLink.textContent = '⬇ Download Video (Local)';
-                DOM.downloadLink.style.color = '#00a8ff';
+            DOM.downloadLink.href = localURL;
+            DOM.downloadLink.download = downloadFileName;
+            DOM.downloadLink.textContent = '⬇ Download Video (Local)';
+            DOM.downloadLink.style.color = '#00a8ff';
                 DOM.downloadLink.onclick = isMobile ? (e) => handleVideoDownload(e) : null;
             }
             
@@ -3043,14 +3043,14 @@ async function uploadToSupabaseCloud(videoBlob, fileName, fileExtension = null) 
                             </div>
                         `;
                     } else {
-                        new QRCode(qrContainer, {
-                            text: localURL,
-                            width: 200,
-                            height: 200,
-                            colorDark: '#000000',
-                            colorLight: '#ffffff',
-                            correctLevel: QRCode.CorrectLevel.H,
-                        });
+                new QRCode(qrContainer, {
+                text: localURL,
+                    width: 200,
+                    height: 200,
+                colorDark: '#000000',
+                colorLight: '#ffffff',
+                correctLevel: QRCode.CorrectLevel.H,
+            });
                     }
                 } catch (qrError) {
                     console.error('QR code generation error:', qrError);
@@ -3068,9 +3068,9 @@ async function uploadToSupabaseCloud(videoBlob, fileName, fileExtension = null) 
             
             // Don't auto-trigger print on mobile devices
             if (!isMobile) {
-                setTimeout(() => {
-                    window.print();
-                }, 500);
+            setTimeout(() => {
+                window.print();
+            }, 500);
             }
         }, 2000);
     }
@@ -3176,7 +3176,7 @@ function preparePrintImage() {
         console.log('✅ Print image prepared - only one image in container');
     } else {
         // Fallback: use existing image element
-        DOM.printImg.src = imgData;
+    DOM.printImg.src = imgData;
     }
     
     // Ensure image is loaded before printing
@@ -3289,7 +3289,7 @@ function printWithCopies() {
         }
         
         // Small delay to ensure image is ready
-        setTimeout(() => {
+            setTimeout(() => {
             try {
                 // Trigger print dialog
                 window.print();

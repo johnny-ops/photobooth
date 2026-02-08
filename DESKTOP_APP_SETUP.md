@@ -62,3 +62,4 @@ npm run build
 - **Development:** `npm start` - Opens Electron window for testing
 - **Production:** `npm run build` - Creates distributable packages
 
+

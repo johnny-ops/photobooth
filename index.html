@@ -21,10 +21,11 @@
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <h1>Photobooth</h1>
-            <p class="subtitle">Ready to capture</p>
+            <h1>ICS Photobooth</h1>
+            <p class="subtitle">Smile and capture your memories</p>
         </div>
 
+        <!-- Camera Status - More Prominent -->
         <div class="camera-status">
             <div class="status-indicator">
                 <span class="status-dot" id="statusDot"></span>
@@ -32,26 +33,53 @@
             </div>
             <div id="smileDetectionStatus" class="smile-status" style="display: none;">
                 <span class="smile-status-icon"></span>
-                <span id="smileStatusText">Smile at the camera...</span>
+                <span id="smileStatusText">Smile at the camera to start</span>
             </div>
         </div>
 
-        <div class="settings-group">
-            <label for="templateSelect">Select Template</label>
+        <!-- Simple Instructions Card -->
+        <div class="instructions-card">
+            <h3>How It Works</h3>
+            <ol class="simple-steps">
+                <li>Position yourself in front of the camera</li>
+                <li>Click "Start" or smile to begin</li>
+                <li>Wait for countdown (3, 2, 1)</li>
+                <li>Smile!</li>
+                <li>Get your photos and video</li>
+            </ol>
+        </div>
+
+        <!-- Template Selection - Simplified -->
+        <div class="settings-group template-group">
+            <label class="section-label">Choose Your Style</label>
             <div id="templateSelector" class="template-selector">
-                <div class="template-loading">Loading templates...</div>
+                <div class="template-loading">Loading styles...</div>
             </div>
         </div>
 
-        <div class="settings-group">
-            <label>
+        <!-- Auto-start Option - Simplified -->
+        <div class="settings-group auto-start-group">
+            <label class="checkbox-label">
                 <input type="checkbox" id="smileDetectionToggle" checked>
-                <span>Enable Smile Detection (Auto-start)</span>
+                <span class="checkbox-text">
+                    <strong>Auto-start with smile</strong>
+                    <small>Just smile at the camera to begin</small>
+                </span>
             </label>
-            <small class="setting-hint">Smile at the camera to automatically start the session</small>
         </div>
 
-        <!-- Fixed to 3 photos - selector hidden -->
+        <!-- Main Action Button - More Prominent -->
+        <button id="startBtn" class="btn-primary btn-large" onclick="startSession()" disabled>
+            <span class="btn-icon"></span>
+            <span class="btn-text">Start Photo Session</span>
+        </button>
+
+        <!-- Help Button - Secondary -->
+        <button id="helpBtn" class="btn-help" onclick="showTutorial()">
+            <span></span> Need Help?
+        </button>
+
+        <!-- Hidden technical settings -->
         <div class="settings-group" style="display: none;">
             <label for="shotCount">Number of Photos</label>
             <select id="shotCount">
@@ -65,32 +93,6 @@
                 <option value="">Auto-detect</option>
             </select>
         </div>
-
-        <div class="info-box">
-            <div class="info-item">
-                <span class="info-label">Photos</span>
-                <span class="info-value">3 Photos</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Print Size</span>
-                <span class="info-value">2.5" × 7"</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Quality</span>
-                <span class="info-value">HD 720P</span>
-            </div>
-        </div>
-        
-
-        <button id="startBtn" class="btn-primary" onclick="startSession()" disabled>
-            <span class="btn-icon"></span>
-            START PHOTO SESSION
-        </button>
-
-        <button id="helpBtn" class="btn-secondary" onclick="showTutorial()" style="margin-top: 10px;">
-            <span class="btn-icon"></span>
-            How to Use
-        </button>
     </div>
 
     <div class="main-area">
@@ -200,35 +202,46 @@
                 </div>
                 
                 <div id="qr-section" style="display: none;">
+                    <div class="qr-section-header">
+                        <h3>Download Your Video</h3>
+                        <p class="qr-instruction">Scan this QR code with your phone to download</p>
+                    </div>
                     <div id="qrcode" class="qr-container"></div>
-                    <p class="qr-label">Scan QR Code to Download Video</p>
 
-                    <div class="print-controls">
-                        <label for="printCopies" class="print-label">Number of Copies:</label>
-                        <select id="printCopies" class="print-select">
-                            <option value="1">1 Copy</option>
-                            <option value="2" selected>2 Copies</option>
-                            <option value="3">3 Copies</option>
-                            <option value="4">4 Copies</option>
-                            <option value="5">5 Copies</option>
-                        </select>
+                    <div class="action-buttons">
+                        <a id="downloadVidLink" class="btn-download" download="photobooth-video.mp4" onclick="handleVideoDownload(event)">
+                            <span class="btn-icon">⬇</span>
+                            <span>Download Video</span>
+                        </a>
                     </div>
 
-                    <div class="btn-group">
-                        <button onclick="printWithCopies()" class="btn-secondary">
-                            <span></span> Print
-                        </button>
-                        <button onclick="savePhotoLocally()" class="btn-secondary" style="margin-top: 10px;">
-                            <span></span> Save Photo
-                        </button>
-                        <button onclick="resetBooth()" class="btn-primary">
+                    <div class="print-section">
+                        <h4> Print Your Photo Strip</h4>
+                        <div class="print-controls">
+                            <label for="printCopies" class="print-label">How many copies?</label>
+                            <select id="printCopies" class="print-select">
+                                <option value="1">1 Copy</option>
+                                <option value="2" selected>2 Copies</option>
+                                <option value="3">3 Copies</option>
+                                <option value="4">4 Copies</option>
+                                <option value="5">5 Copies</option>
+                            </select>
+                        </div>
+                        <div class="print-buttons">
+                            <button onclick="printWithCopies()" class="btn-print">
+                                <span></span> Print
+                            </button>
+                            <button onclick="savePhotoLocally()" class="btn-save">
+                                <span></span> Save Photo
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="next-session">
+                        <button onclick="resetBooth()" class="btn-primary btn-new-session">
                             <span></span> Take More Photos
                         </button>
                     </div>
-                    
-                    <a id="downloadVidLink" class="download-link" download="photobooth-video.mp4" onclick="handleVideoDownload(event)">
-                        ⬇ Download Video
-                    </a>
                     <div id="iosDownloadHelp" class="ios-download-help" style="display: none;">
                         <p class="ios-help-text"> <strong>iPhone/iPad Users:</strong></p>
                         <p class="ios-help-text">Tap the video above, then use the share button to save to your device.</p>
