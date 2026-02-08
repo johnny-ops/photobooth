@@ -2834,8 +2834,8 @@ function processResultsWithVideo(finalVideoBlob, fileExtension = 'webm') {
     const videoURL = URL.createObjectURL(finalVideoBlob);
     setupDownloadLink(videoURL, fileName, fileExtension, finalVideoBlob);
 
-    // Upload to Supabase
-    uploadToSupabaseCloud(finalVideoBlob, fileName);
+    // Upload to Supabase (pass fileExtension)
+    uploadToSupabaseCloud(finalVideoBlob, fileName, fileExtension);
 }
 
 // Setup download link with mobile/iOS support
@@ -2872,8 +2872,15 @@ function setupDownloadLink(videoURL, fileName, fileExtension, videoBlob) {
     }
 }
 
-async function uploadToSupabaseCloud(videoBlob, fileName) {
+async function uploadToSupabaseCloud(videoBlob, fileName, fileExtension = null) {
     try {
+        // Extract fileExtension from fileName if not provided
+        if (!fileExtension) {
+            fileExtension = fileName.includes('.mp4') ? 'mp4' : 
+                           fileName.includes('.webm') ? 'webm' : 
+                           videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+        }
+        
         console.log('Starting Supabase upload...');
         showProcessingStatus('Uploading video to cloud...');
 
@@ -2929,18 +2936,28 @@ async function uploadToSupabaseCloud(videoBlob, fileName) {
 
         showProcessingStatus('Generating QR code...');
 
-        // Generate QR code with cloud URL
+        // Store cloud URL in state for QR code and download
+        state.cloudVideoURL = cloudURL;
+
+        // Generate QR code with cloud URL (works on all devices)
         const qrContainer = document.getElementById('qrcode');
         if (qrContainer) {
             qrContainer.innerHTML = '';
-            new QRCode(qrContainer, {
-            text: cloudURL,
-                width: 200,
-                height: 200,
-            colorDark: '#000000',
-            colorLight: '#ffffff',
-            correctLevel: QRCode.CorrectLevel.H,
-        });
+            try {
+                new QRCode(qrContainer, {
+                    text: cloudURL,
+                    width: 200,
+                    height: 200,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H,
+                });
+                console.log('✅ QR code generated with cloud URL:', cloudURL);
+            } catch (qrError) {
+                console.error('QR code generation error:', qrError);
+                // Fallback: show URL as text
+                qrContainer.innerHTML = `<p style="word-break: break-all; font-size: 10px; padding: 10px;">${cloudURL}</p>`;
+            }
         }
 
         // Update download link to cloud URL with proper download handler
@@ -2976,29 +2993,68 @@ async function uploadToSupabaseCloud(videoBlob, fileName) {
         
         setTimeout(async () => {
             // Fallback to local download with proper file extension
-            const fileExtension = videoBlob.type.includes('mp4') ? 'mp4' : 'webm';
+            const fallbackFileExtension = fileExtension || (videoBlob.type.includes('mp4') ? 'mp4' : 'webm');
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-            const downloadFileName = `photobooth-${timestamp}.${fileExtension}`;
+            const downloadFileName = `photobooth-${timestamp}.${fallbackFileExtension}`;
+            
+            // Store for download
+            state.downloadVideoBlob = videoBlob;
+            state.downloadFileName = downloadFileName;
+            state.downloadFileExtension = fallbackFileExtension;
             
             const localURL = URL.createObjectURL(videoBlob);
-            DOM.downloadLink.href = localURL;
-            DOM.downloadLink.download = downloadFileName;
-            DOM.downloadLink.textContent = '⬇ Download Video (Local)';
-            DOM.downloadLink.style.color = '#00a8ff';
-            DOM.downloadLink.onclick = null; // Remove custom handler for local downloads
+            state.downloadVideoURL = localURL;
             
-            // Generate QR code with local URL
+            // Setup download link for local file
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isIOS) {
+                DOM.downloadLink.href = localURL;
+                DOM.downloadLink.target = '_blank';
+                DOM.downloadLink.download = '';
+                DOM.downloadLink.textContent = '📱 Open Video (Local)';
+                DOM.downloadLink.onclick = (e) => {
+                    e.preventDefault();
+                    downloadVideoForIOS(videoBlob, downloadFileName);
+                    return false;
+                };
+            } else {
+                DOM.downloadLink.href = localURL;
+                DOM.downloadLink.download = downloadFileName;
+                DOM.downloadLink.textContent = '⬇ Download Video (Local)';
+                DOM.downloadLink.style.color = '#00a8ff';
+                DOM.downloadLink.onclick = isMobile ? (e) => handleVideoDownload(e) : null;
+            }
+            
+            // Generate QR code with local URL (note: blob URLs don't work on mobile)
             const qrContainer = document.getElementById('qrcode');
             if (qrContainer) {
                 qrContainer.innerHTML = '';
-                new QRCode(qrContainer, {
-                text: localURL,
-                    width: 200,
-                    height: 200,
-                colorDark: '#000000',
-                colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.H,
-            });
+                try {
+                    // For mobile devices, show a message that QR won't work with blob URLs
+                    if (isMobile) {
+                        qrContainer.innerHTML = `
+                            <div style="text-align: center; padding: 20px;">
+                                <p style="color: #666; margin-bottom: 10px;">⚠️ Cloud upload failed</p>
+                                <p style="color: #666; font-size: 12px;">QR code unavailable for local files on mobile.</p>
+                                <p style="color: #666; font-size: 12px;">Please use the download button above.</p>
+                            </div>
+                        `;
+                    } else {
+                        new QRCode(qrContainer, {
+                            text: localURL,
+                            width: 200,
+                            height: 200,
+                            colorDark: '#000000',
+                            colorLight: '#ffffff',
+                            correctLevel: QRCode.CorrectLevel.H,
+                        });
+                    }
+                } catch (qrError) {
+                    console.error('QR code generation error:', qrError);
+                    qrContainer.innerHTML = `<p style="word-break: break-all; font-size: 10px; color: #666; padding: 10px;">Local file - Use download button</p>`;
+                }
             }
 
             // Prepare print image with template included
@@ -3006,10 +3062,15 @@ async function uploadToSupabaseCloud(videoBlob, fileName) {
 
             hideProcessingStatus();
             
-            // Trigger print
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            // Show modal
+            DOM.modal.style.display = 'flex';
+            
+            // Don't auto-trigger print on mobile devices
+            if (!isMobile) {
+                setTimeout(() => {
+                    window.print();
+                }, 500);
+            }
         }, 2000);
     }
 }
@@ -3078,18 +3139,122 @@ function preparePrintImage() {
     // Just export it for printing with proper sizing
     const imgData = DOM.stripCanvas.toDataURL('image/png', 1.0); // High quality
     
-    // Set the print image source
-    DOM.printImg.src = imgData;
+    // Store image data for save function
+    state.printImageData = imgData;
+    
+    // Get print container and clear any duplicates
+    const printContainer = document.getElementById('print-image-container');
+    if (printContainer) {
+        // Clear container to remove any duplicate images
+        printContainer.innerHTML = '';
+        
+        // Create fresh image element (only one)
+        const printImg = document.createElement('img');
+        printImg.id = 'print-target';
+        printImg.src = imgData;
+        printImg.alt = 'Photobooth Strip';
+        printImg.style.width = '100%';
+        printImg.style.height = 'auto';
+        printImg.style.display = 'block';
+        printContainer.appendChild(printImg);
+        
+        // Update DOM reference
+        DOM.printImg = printImg;
+        
+        // Verify only one image exists (remove any duplicates)
+        const images = printContainer.querySelectorAll('img');
+        if (images.length > 1) {
+            console.warn('Multiple images detected, removing duplicates');
+            images.forEach((img, index) => {
+                if (index > 0 || img.id !== 'print-target') {
+                    img.remove();
+                }
+            });
+        }
+        
+        console.log('✅ Print image prepared - only one image in container');
+    } else {
+        // Fallback: use existing image element
+        DOM.printImg.src = imgData;
+    }
     
     // Ensure image is loaded before printing
     return new Promise((resolve) => {
-        if (DOM.printImg.complete) {
+        const imgToCheck = DOM.printImg;
+        if (imgToCheck.complete && imgToCheck.naturalWidth > 0) {
             resolve();
         } else {
-            DOM.printImg.onload = () => resolve();
-            DOM.printImg.onerror = () => resolve(); // Continue even if error
+            imgToCheck.onload = () => {
+                if (imgToCheck.naturalWidth > 0) {
+                    resolve();
+                } else {
+                    setTimeout(() => resolve(), 100);
+                }
+            };
+            imgToCheck.onerror = () => resolve(); // Continue even if error
         }
     });
+}
+
+// ========================================
+// SAVE PHOTO LOCALLY
+// ========================================
+
+async function savePhotoLocally() {
+    try {
+        // Get image data from state or regenerate from canvas
+        let imageData = state.printImageData;
+        
+        if (!imageData) {
+            // Regenerate from canvas if not stored
+            imageData = DOM.stripCanvas.toDataURL('image/png', 1.0);
+            state.printImageData = imageData; // Store it
+        }
+        
+        if (!imageData) {
+            alert('No photo available to save. Please complete a photo session first.');
+            return;
+        }
+        
+        // Create download link
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const fileName = `photobooth-strip-${timestamp}.png`;
+        
+        // Convert data URL to blob (simpler async method)
+        const response = await fetch(imageData);
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+        
+        // Add to body and trigger download
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        setTimeout(() => {
+            if (link.parentNode) {
+                document.body.removeChild(link);
+            }
+            URL.revokeObjectURL(url);
+        }, 100);
+        
+        console.log('✅ Photo saved locally:', fileName);
+        
+        // Show success message
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile) {
+            alert('Photo saved! Check your downloads folder.');
+        }
+        
+    } catch (error) {
+        console.error('Error saving photo:', error);
+        alert('Failed to save photo. Please try again or use the print function.');
+    }
 }
 
 // ========================================
@@ -3104,19 +3269,42 @@ function printWithCopies() {
     
     // Prepare print image
     preparePrintImage().then(() => {
-        // Use window.print() - browser will handle multiple copies
-        // Note: Most browsers will show print dialog where user can set copies
-        // For automatic multiple copies, we'd need to call print multiple times
-        // but that's not reliable, so we'll let the user set copies in print dialog
+        // Ensure print image container is properly set up
+        const printContainer = document.getElementById('print-image-container');
+        if (printContainer) {
+            // Make sure only one image exists
+            const images = printContainer.querySelectorAll('img');
+            if (images.length > 1) {
+                // Keep only the first one (print-target)
+                images.forEach((img, index) => {
+                    if (index > 0 || img.id !== 'print-target') {
+                        img.remove();
+                    }
+                });
+            }
+            
+            // Ensure container is visible for print
+            printContainer.style.display = 'block';
+        }
         
-        // Trigger print dialog
-        window.print();
-        
-        // Show message about copies
-        if (copies > 1) {
-            setTimeout(() => {
-                alert(`Print dialog opened. Please set ${copies} copies in the print dialog.`);
-            }, 100);
+        // Small delay to ensure image is ready
+        setTimeout(() => {
+            try {
+                // Trigger print dialog
+                window.print();
+            } catch (error) {
+                console.error('Print error:', error);
+                // Fallback: offer to save instead
+                if (confirm('Print failed. Would you like to save the photo instead?')) {
+                    savePhotoLocally();
+                }
+            }
+        }, 300);
+    }).catch(error => {
+        console.error('Error preparing print image:', error);
+        // Offer save as fallback
+        if (confirm('Failed to prepare print. Would you like to save the photo instead?')) {
+            savePhotoLocally();
         }
     });
 }
@@ -3478,69 +3666,89 @@ function setupCloudDownloadLink(cloudURL, fileName, fileExtension) {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
+    // Store cloud URL in state
     state.cloudVideoURL = cloudURL;
+    state.downloadFileName = fileName;
+    state.downloadFileExtension = fileExtension || (fileName.includes('.mp4') ? 'mp4' : 'webm');
     
-    if (isIOS) {
-        // iOS: Open in new tab, user can use share button
-        DOM.downloadLink.href = cloudURL;
-        DOM.downloadLink.target = '_blank';
-        DOM.downloadLink.download = ''; // Remove download attribute for iOS
-        DOM.downloadLink.textContent = '📱 Open Video (Tap to Download)';
-        DOM.downloadLink.style.color = '#00a8ff';
-        DOM.downloadLink.onclick = (e) => {
-            e.preventDefault();
-            window.open(cloudURL, '_blank');
-            return false;
-        };
-        
-        // Show iOS help
-        const iosHelp = document.getElementById('iosDownloadHelp');
-        if (iosHelp) {
-            iosHelp.style.display = 'block';
-        }
-    } else if (isMobile) {
-        // Android/Other mobile: Try to download, fallback to open
-        DOM.downloadLink.href = cloudURL;
-        DOM.downloadLink.download = fileName;
-        DOM.downloadLink.target = '_blank';
-        DOM.downloadLink.textContent = '⬇ Download Video';
-        DOM.downloadLink.style.color = '#00a8ff';
-        DOM.downloadLink.onclick = (e) => handleVideoDownload(e);
-    } else {
-        // Desktop: Direct download via fetch
-        DOM.downloadLink.href = '#';
-        DOM.downloadLink.textContent = '⬇ Download Video';
-        DOM.downloadLink.style.color = '#00a8ff';
-        DOM.downloadLink.onclick = async (e) => {
-            e.preventDefault();
-            try {
-                const response = await fetch(cloudURL);
-                if (!response.ok) throw new Error('Failed to fetch video');
-                
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                
-                let fileExt = 'mp4';
-                if (blob.type.includes('webm')) fileExt = 'webm';
-                else if (cloudURL.includes('.webm')) fileExt = 'webm';
-                else if (cloudURL.includes('.mp4')) fileExt = 'mp4';
-                
-                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-                const downloadFileName = `photobooth-${timestamp}.${fileExt}`;
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = downloadFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-            } catch (error) {
-                console.error('Download error:', error);
-                window.open(cloudURL, '_blank');
+    try {
+        if (isIOS) {
+            // iOS: Open in new tab, user can use share button
+            DOM.downloadLink.href = cloudURL;
+            DOM.downloadLink.target = '_blank';
+            DOM.downloadLink.download = ''; // Remove download attribute for iOS
+            DOM.downloadLink.textContent = '📱 Open Video (Tap to Download)';
+            DOM.downloadLink.style.color = '#00a8ff';
+            DOM.downloadLink.onclick = (e) => {
+                e.preventDefault();
+                try {
+                    window.open(cloudURL, '_blank');
+                } catch (err) {
+                    console.error('iOS open error:', err);
+                    // Fallback: try direct link
+                    window.location.href = cloudURL;
+                }
+                return false;
+            };
+            
+            // Show iOS help
+            const iosHelp = document.getElementById('iosDownloadHelp');
+            if (iosHelp) {
+                iosHelp.style.display = 'block';
             }
-        };
+        } else if (isMobile) {
+            // Android/Other mobile: Try to download, fallback to open
+            DOM.downloadLink.href = cloudURL;
+            DOM.downloadLink.download = fileName;
+            DOM.downloadLink.target = '_blank';
+            DOM.downloadLink.textContent = '⬇ Download Video';
+            DOM.downloadLink.style.color = '#00a8ff';
+            DOM.downloadLink.onclick = (e) => {
+                // Let default behavior try first, then handle if needed
+                return handleVideoDownload(e);
+            };
+        } else {
+            // Desktop: Direct download via fetch
+            DOM.downloadLink.href = '#';
+            DOM.downloadLink.textContent = '⬇ Download Video';
+            DOM.downloadLink.style.color = '#00a8ff';
+            DOM.downloadLink.onclick = async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch(cloudURL);
+                    if (!response.ok) throw new Error('Failed to fetch video');
+                    
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    let fileExt = state.downloadFileExtension || 'mp4';
+                    if (blob.type.includes('webm')) fileExt = 'webm';
+                    else if (cloudURL.includes('.webm')) fileExt = 'webm';
+                    else if (cloudURL.includes('.mp4')) fileExt = 'mp4';
+                    
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                    const downloadFileName = `photobooth-${timestamp}.${fileExt}`;
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = downloadFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                } catch (error) {
+                    console.error('Download error:', error);
+                    window.open(cloudURL, '_blank');
+                }
+            };
+        }
+    } catch (error) {
+        console.error('Error setting up download link:', error);
+        // Fallback: simple link
+        DOM.downloadLink.href = cloudURL;
+        DOM.downloadLink.target = '_blank';
+        DOM.downloadLink.textContent = '⬇ Download Video';
     }
 }
 

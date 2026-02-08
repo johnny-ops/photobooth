@@ -951,50 +951,103 @@ canvas#final-strip {
     display: none;
 }
 
+/* ========================================
+   PRINT STYLES - FIX DUPLICATE ISSUE
+   ======================================== */
+
 @media print {
     @page {
         size: 2.5in 7in;
         margin: 0;
     }
 
-    body * {
+    /* Hide everything by default */
+    * {
         visibility: hidden;
     }
-
+    
+    /* Only show print image container */
     #print-image-container,
     #print-image-container * {
-        visibility: visible;
+        visibility: visible !important;
+    }
+    
+    /* Hide all other elements completely */
+    body > *:not(#print-image-container) {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Hide canvas elements */
+    canvas {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Hide all UI elements */
+    .sidebar,
+    .main-area,
+    .preview-strip-container,
+    .modal,
+    .modal-box,
+    .countdown,
+    .flash-effect,
+    .smile-detection-indicator,
+    video {
+        display: none !important;
+        visibility: hidden !important;
     }
 
+    /* Print image container styling */
     #print-image-container {
-        position: absolute;
+        position: fixed;
         left: 0;
         top: 0;
         width: 100%;
         height: 100%;
         margin: 0;
         padding: 0;
-        display: flex;
+        display: flex !important;
         align-items: center;
         justify-content: center;
         background: white;
+        visibility: visible !important;
     }
 
+    /* Print image - only one image should show */
     img#print-target {
-        width: 2.5in;
-        height: 7in;
+        width: 2.5in !important;
+        height: 7in !important;
+        max-width: 2.5in !important;
+        max-height: 7in !important;
         object-fit: contain;
-        display: block;
+        display: block !important;
+        visibility: visible !important;
         image-rendering: auto;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
         page-break-after: always;
+        margin: 0;
+        padding: 0;
     }
     
-    /* Print multiple copies */
-    @page {
-        size: 2.5in 7in;
-        margin: 0;
+    /* Hide any duplicate images - ensure only one shows */
+    #print-image-container img:not(#print-target) {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Ensure only first image shows if multiple exist */
+    #print-image-container img:nth-child(n+2) {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    
+    /* Ensure body has no margin/padding */
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
     }
 }
 
